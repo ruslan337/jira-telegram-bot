@@ -1,0 +1,18 @@
+[Unit]
+Description=JIRA bot interface
+After=syslog.target
+After=network.target
+
+[Service]
+Type=simple
+PIDFile=/tmp/jira-bot.pid
+WorkingDirectory=/home/nonrootuser/jira-telegram-bot
+User=nonrootuser
+Group=nonrootuser
+OOMScoreAdjust=-100
+ExecStart=./jira-telegram.py
+ExecStop=/bin/kill -9 `cat $PIDFile`
+
+[Install]
+WantedBy=multi-user.target
+

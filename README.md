@@ -3,7 +3,8 @@ Telegram-bot interface for JIRA
 # DEPENDENCIES:
 * Python library for Telegram Bot API - https://github.com/python-telegram-bot/python-telegram-bot <br />
 * Python library to work with JIRA APIs - https://jira.readthedocs.io/en/master/ <br />
-You can install all dependencies running:<br />
+
+<b>You can install all dependencies running:</b><br />
 * pip3 install python-telegram-bot <br />
 * pip3 install jira
 # How to use

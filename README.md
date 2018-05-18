@@ -1,6 +1,6 @@
 # jira-telegram-bot
 Telegram-bot interface for JIRA <br />
-![Alt Text](https://github.com/ruslan337/jira-telegram-bot/blob/master/20180518_121727.gif)
+![Alt Text](https://github.com/ruslan337/jira-telegram-bot/blob/master/demo.gif)
 # Dependencies:
 * Python library for Telegram Bot API - https://github.com/python-telegram-bot/python-telegram-bot <br />
 * Python library to work with JIRA APIs - https://jira.readthedocs.io/en/master/ <br />

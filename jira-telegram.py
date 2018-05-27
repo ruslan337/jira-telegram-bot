@@ -66,25 +66,6 @@ def start(bot, update):
     #keys=InlineKeyboardMarkup([[InlineKeyboardButton(comm, callback_data=comm) for comm in init_commands[lang].values()]])
     #bot.sendMessage(chat_id=update.message.chat_id, text=hello_message[lang], reply_markup=keys)
 
-def list_tasks(bot, update):
-    answer=''
-    sender=str(update.message.from_user.id)
-    lang=users[sender].language
-    if users[sender].jirauser is not None:
-        answer+='<b>'+jirauser_assignee_list[lang].format(users[sender].name)+':</b>\n'
-        issues=jira.search_issues('assignee={0} and status!=Done'.format(users[sender].jirauser))
-        for issue in issues:
-            answer+='• <a href="'+jiraserver+'/browse/'+issue.key+'">'+\
-        str(issue.key)+'</a> (<i>'+issue.raw['fields']['status']['name']+'</i>) '+issue.raw['fields']['summary']+'\n'
-        answer+='\n<b>'+jirauser_author_list[lang].format(users[sender].name)+':</b>\n'
-        issues=jira.search_issues('reporter={0} and status!=Done'.format(users[sender].jirauser))
-        for issue in issues:
-            answer+='• <a href="'+jiraserver+'/browse/'+issue.key+'">'+\
-        str(issue.key)+'</a> (<i>'+issue.raw['fields']['status']['name']+'</i>) '+issue.raw['fields']['summary']+'\n'
-        bot.sendMessage(chat_id=update.message.chat_id, text=answer, parse_mode='HTML')
-        keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in init_commands[lang].values()]], resize_keyboard=True)
-        bot.sendMessage(chat_id=update.message.chat_id, text=hello_message[lang], reply_markup=keys)
-
 def inline_update(bot, update):
     sender=users[str(update.callback_query.from_user.id)]
     (action,task_id,new_data)=update.callback_query.data.split('__')
@@ -101,29 +82,29 @@ def inline_update(bot, update):
         bot.answerCallbackQuery(callback_query_id=update.callback_query.id, text=task_was_created_error[lang])
 
 def file_upload(bot, update):
-    sender=str(update.message.from_user.id)
-    lang=users[sender].language
-    if users[sender].task_id!=None:
+    sender=users[str(update.message.from_user.id)]
+    lang=sender.language
+    if sender.task.task_id!=None:
         if update.message.voice!=None:
             f=update.message.voice.get_file()
             filename=f.download(custom_path=attach_dir+f.file_path.split('/').pop())
-            users[sender].file.append(filename)
+            sender.task.file.append(filename)
             bot.sendMessage(chat_id=update.message.chat_id, text=file_accepted_message[lang])
         elif update.message.document!=None:
             f=update.message.document.get_file()
             filename=f.download(custom_path=attach_dir+f.file_path.split('/').pop())
-            users[sender].file.append(filename)
+            sender.task.file.append(filename)
             bot.sendMessage(chat_id=update.message.chat_id, text=file_accepted_message[lang])
         elif update.message.video!=None:
             f=update.message.video.get_file()
             filename=f.download(custom_path=attach_dir+f.file_path.split('/').pop())
-            users[sender].file.append(filename)
+            sender.task.file.append(filename)
             bot.sendMessage(chat_id=update.message.chat_id, text=file_accepted_message[lang])
         elif update.message.photo!=None:
             photo=update.message.photo.pop()
             f=photo.get_file()
             filename=f.download(custom_path=attach_dir+f.file_path.split('/').pop())
-            users[sender].file.append(filename)
+            sender.task.file.append(filename)
             bot.sendMessage(chat_id=update.message.chat_id, text=file_accepted_message[lang])
         else:
             bot.sendMessage(chat_id=update.message.chat_id, text=file_type_error[lang])

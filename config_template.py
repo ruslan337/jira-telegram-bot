@@ -1,10 +1,11 @@
 #!/bin/python3
-
+# -*- coding: utf-8 -*-
 token='123456789:ABCDE1234567890ABCDE1234567890ABCDE' # Telegram Bot token
 jiraserver='https://yourcompanyname.atlassian.net' 
 jirauser='jiraUser'
 jirapass='jiraUserPassword'
 db_dir='/var/local/jira_notifier/' # The app will create some files here, be sure that this app UID has such permessions.
+log_dir=db_dir+'log/' # Log dir
 attach_dir=db_dir+'attach/' # Attach files are going to be stored here.
 jira_projects=['PROJ1','PROJ2'] # The codes of jour jira projects, that are going to be used by this app.
 # Format for users list, who is going to use this app, or who is going to be assignee for the tasks from this bot
@@ -19,7 +20,7 @@ jira_projects=['PROJ1','PROJ2'] # The codes of jour jira projects, that are goin
 #	 'next_chat_id' : {...},
 # }
 # See example above
-users={ \
+user_list={ \
      '11111111' : { 'name':'Martian', 'username':'martian337', 'project':'TST',\
                     'jirauser':'admin', 'isAssignee':True, 'language':'ru', 'priority':'Medium'},\
      '22222222' : { 'name':'Fatboy', 'username':None, 'project':'ABC',\

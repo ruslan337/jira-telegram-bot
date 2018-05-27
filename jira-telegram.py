@@ -27,11 +27,12 @@ from telegram.ext import Updater, CommandHandler, Job, CallbackQueryHandler, Reg
 from telegram.ext.filters import Filters
 from telegram import InlineKeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, ReplyKeyboardRemove, File, InputFile
 from datetime import datetime, time, timedelta
-import urllib, re, os
+import urllib, re, os, logging
 from random import randint
 from jira import JIRA
 from copy import deepcopy
-from config import users as clean_users
+from init import init_dirs
+from models import User
 
 jira=JIRA(server=jiraserver, basic_auth=(jirauser, jirapass))
 
@@ -57,263 +58,158 @@ def show_help(bot, update):
 
 def start(bot, update):
     bot.sendChatAction(chat_id=update.message.chat_id, action='typing')
-    global users
-    global clean_users
     sender=str(update.message.from_user.id)
-    users[sender]=deepcopy(clean_users[sender])
-    lang=users[sender]['language']
+    users[sender].reset()
+    lang=users[sender].language
     keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in init_commands[lang].values()]], resize_keyboard=True)
     bot.sendMessage(chat_id=update.message.chat_id, text=hello_message[lang], reply_markup=keys)
     #keys=InlineKeyboardMarkup([[InlineKeyboardButton(comm, callback_data=comm) for comm in init_commands[lang].values()]])
     #bot.sendMessage(chat_id=update.message.chat_id, text=hello_message[lang], reply_markup=keys)
 
-def task_create(bot, update):
-    bot.sendChatAction(chat_id=update.message.chat_id, action='typing')
-    text=update.message.text
-    global jira_users, jira, projects
+def list_tasks(bot, update):
+    answer=''
     sender=str(update.message.from_user.id)
-    if sender in users:
-        lang=users[sender]['language']
-        if text==cancel_key[lang]:start(bot, update)
-        elif text==init_commands[lang]['list']:
-            answer=''
-            if users[sender]['jirauser'] is not None:
-                answer+='<b>'+jirauser_assignee_list[lang].format(users[sender]['name'])+':</b>\n'
-                issues=jira.search_issues('assignee={0} and status!=Done'.format(users[sender]['jirauser']))
-                for issue in issues:answer+='• <a href="'+jiraserver+'/browse/'+issue.key+'">'+\
-                str(issue.key)+'</a> (<i>'+issue.raw['fields']['status']['name']+'</i>) '+issue.raw['fields']['summary']+'\n'
-                answer+='\n<b>'+jirauser_author_list[lang].format(users[sender]['name'])+':</b>\n'
-                issues=jira.search_issues('reporter={0} and status!=Done'.format(users[sender]['jirauser']))
-                for issue in issues:answer+='• <a href="'+jiraserver+'/browse/'+issue.key+'">'+\
-                str(issue.key)+'</a> (<i>'+issue.raw['fields']['status']['name']+'</i>) '+issue.raw['fields']['summary']+'\n'
-                bot.sendMessage(chat_id=update.message.chat_id, text=answer, parse_mode='HTML')
-                keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in init_commands[lang].values()]], resize_keyboard=True)
-                bot.sendMessage(chat_id=update.message.chat_id, text=hello_message[lang], reply_markup=keys)
-        elif text==init_commands[lang]['task']:
-            users[sender]['task_id']=sender+str(datetime.now()).replace(' ','_').replace(':','').replace('.','')+str(randint(10000,99999))
-            users[sender]['createtask']=True
-            keys=ReplyKeyboardMarkup(keyboard=[[name for name in jira_users],[cancel_key[lang]]], resize_keyboard=True)
-            bot.sendMessage(chat_id=update.message.chat_id, text=task_assignee_message[lang], reply_markup=keys)
-        elif text in jira_users and users[sender]['createtask']:
-            users[sender]['task_to']=jira_users[text]
-            keys=InlineKeyboardMarkup([[InlineKeyboardButton(name, callback_data='user_change__'+users[sender]['task_id']+\
-                                        '__'+jira_users[name]) for name in jira_users]])
-            bot.sendMessage(chat_id=update.message.chat_id, text=inline_assignee_message[lang].format(\
-                            users[users[sender]['task_to']]['name']), reply_markup=keys)
-            keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in task_commands[lang].values()],[cancel_key[lang],\
-                                     send_task_key[lang]]], resize_keyboard=True)
-            bot.sendMessage(chat_id=update.message.chat_id, text=task_create_message[lang], reply_markup=keys)
-        elif text == task_commands[lang]['summary'] and users[sender]['createtask']:
-            users[sender]['set_summary']=True
-            keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in task_commands[lang].values()],[cancel_key[lang],send_task_key[lang]]], resize_keyboard=True)
-            bot.sendMessage(chat_id=update.message.chat_id, text=task_summary_message[lang], reply_markup=keys)
-        elif text==task_commands[lang]['priority'] and users[sender]['createtask']:
-            keys=ReplyKeyboardMarkup(keyboard=[[priority for priority in priority_list[lang]],[cancel_key[lang]]],resize_keyboard=True)
-            users[sender]['set_priority']=True
-            bot.sendMessage(chat_id=update.message.chat_id, text=task_priority_message[lang], reply_markup=keys)
-        elif text==task_commands[lang]['deadline'] and users[sender]['createtask']:
-            keys=ReplyKeyboardMarkup(keyboard=[['1','2','3','4','5','10']],resize_keyboard=True)
-            users[sender]['set_deadline']=True
-            bot.sendMessage(chat_id=update.message.chat_id, text=task_deadline_message[lang], reply_markup=keys)
-        elif text==task_commands[lang]['project'] and users[sender]['createtask']:
-            users[sender]['set_project']=True
-            keys=ReplyKeyboardMarkup(keyboard=[[project for project in projects]], resize_keyboard=True)
-            bot.sendMessage(chat_id=update.message.chat_id, text=task_deadline_message[lang], reply_markup=keys)
-        elif text==send_task_key[lang] and users[sender]['createtask']:
-            if users[sender]['task_text'] is not None and users[sender]['task_to'] is not None:
-                if users[sender]['summary'] is None:
-                    users[sender]['summary']=users[sender]['name']+': '+" ".join(users[sender]['task_text'].split()[:5])
-                jf={'project':users[sender]['project'], \
-                    'summary':users[sender]['summary'], \
-                    'description':users[sender]['task_text'], \
-                    'issuetype':{'name':'Task'}, \
-                    'assignee':{'name':users[users[sender]['task_to']]['jirauser']}, \
-                    'priority':{'name':users[sender]['priority']}\
-                }
-                if users[sender]['deadline'] is not None:
-                    jf['duedate']=str((datetime.now()+timedelta(days=int(users[sender]['deadline']))).date())
-                issue=jira.create_issue(jf)
-                for filename in users[sender]['file']:
-                    jira.add_attachment(issue=issue, attachment=filename)
-                f=open(db_dir+users[sender]['task_id'],'w')
-                f.write(issue.id)
-                f.close()
-                keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in init_commands[lang].values()]], resize_keyboard=True)
-                bot.sendMessage(chat_id=update.message.chat_id, text=task_was_created_message[lang].format(issue.key,\
-                                users[users[sender]['task_to']]['name']), reply_markup=keys)
-                users[sender]=deepcopy(clean_users[sender])
-            else:
-                keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in init_commands[lang].values()]], resize_keyboard=True)
-                bot.sendMessage(chat_id=update.message.chat_id, text=no_text_message[lang].format(issue.key, users[users[sender]['task_to']]['name']), reply_markup=keys)
-        elif users[sender]['set_priority'] and users[sender]['createtask'] and (text in priority_list[lang]):
-            users[sender]['priority']=text
-            users[sender]['set_priority']=False
-            keys=InlineKeyboardMarkup([[InlineKeyboardButton(priority, callback_data='priority_change__'+users[sender]['task_id']+\
-                                        '__'+priority_list[lang][priority]) for priority in priority_list[lang]]])
-            bot.sendMessage(chat_id=update.message.chat_id, text=priority_was_set_message[lang].format(\
-                            users[sender]['priority']), reply_markup=keys)
-            keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in task_commands[lang].values()],[cancel_key[lang],send_task_key[lang]]], resize_keyboard=True)
-            bot.sendMessage(chat_id=update.message.chat_id, text=task_create_message[lang], reply_markup=keys)
-        elif users[sender]['set_project'] and users[sender]['createtask']:
-            if text in projects:
-                users[sender]['project']=projects[text]
-                users[sender]['set_project']=False
-                keys=InlineKeyboardMarkup([[InlineKeyboardButton(project, callback_data='project_change__'+
-                                        users[sender]['task_id']+'__'+projects[project]) for project in projects]])
-                bot.sendMessage(chat_id=update.message.chat_id, text=project_was_set_message[lang].format(text), reply_markup=keys)
-                keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in task_commands[lang].values()],[cancel_key[lang],send_task_key[lang]]], resize_keyboard=True)
-                bot.sendMessage(chat_id=update.message.chat_id, text=task_create_message[lang], reply_markup=keys)
-            else:
-                users[sender]['set_project']=True
-                keys=ReplyKeyboardMarkup(keyboard=[[project for project in projects.values()]], resize_keyboard=True)
-                bot.sendMessage(chat_id=update.message.chat_id, text=project_error_message[lang], reply_markup=keys)
-        elif users[sender]['set_deadline'] and users[sender]['createtask']:
-            if text.isnumeric():
-                users[sender]['set_deadline']=False
-                users[sender]['deadline']=int(text)
-                keyboard=['1','2','3','4','5','10']
-                keys=InlineKeyboardMarkup([[InlineKeyboardButton(key, callback_data='deadline_change__'+users[sender]['task_id']+
-                                            '__'+key) for key in keyboard]])
-                bot.sendMessage(chat_id=update.message.chat_id, text=deadline_was_set_message[lang].format(text), reply_markup=keys)
-                keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in task_commands[lang].values()],[cancel_key[lang],send_task_key[lang]]], resize_keyboard=True)
-                bot.sendMessage(chat_id=update.message.chat_id, text=task_create_message[lang], reply_markup=keys)
-            else:
-                keys=InlineReplyKeyboardMarkup(keyboard=[['1','2','3','4','5','10']],resize_keyboard=True)
-                users[sender]['set_deadline']=True
-                bot.sendMessage(chat_id=update.message.chat_id, text=task_deadline_message[lang], reply_markup=keys)
-        elif users[sender]['set_summary'] and users[sender]['createtask']:
-            users[sender]['summary']=text
-            users[sender]['set_summary']=False
-            keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in task_commands[lang].values()],[cancel_key[lang],send_task_key[lang]]], resize_keyboard=True)
-            bot.sendMessage(chat_id=update.message.chat_id, text=summary_was_set_message[lang], reply_markup=keys)
-            if users[sender]['task_text'] is None:
-                bot.sendMessage(chat_id=update.message.chat_id, text=task_create_message[lang], reply_markup=keys)
-        elif users[sender]['createtask'] and users[sender]['task_to'] is not None:
-            if users[sender]['task_text'] is None:users[sender]['task_text']=''
-            users[sender]['task_text']+=text+'\n'
-            keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in task_commands[lang].values()],[cancel_key[lang],send_task_key[lang]]], resize_keyboard=True)
-            bot.sendMessage(chat_id=update.message.chat_id, text=task_is_ready_message[lang], reply_markup=keys)
-        else:
-            bot.sendMessage(chat_id=update.message.chat_id, text=error_message[lang].format(issue.key, users[users[sender]['task_to']]['name']), reply_markup=keys)
-    else:
-        bot.sendMessage(chat_id=update.message.chat_id, text=no_authorization_message[lang])
+    lang=users[sender].language
+    if users[sender].jirauser is not None:
+        answer+='<b>'+jirauser_assignee_list[lang].format(users[sender].name)+':</b>\n'
+        issues=jira.search_issues('assignee={0} and status!=Done'.format(users[sender].jirauser))
+        for issue in issues:
+            answer+='• <a href="'+jiraserver+'/browse/'+issue.key+'">'+\
+        str(issue.key)+'</a> (<i>'+issue.raw['fields']['status']['name']+'</i>) '+issue.raw['fields']['summary']+'\n'
+        answer+='\n<b>'+jirauser_author_list[lang].format(users[sender].name)+':</b>\n'
+        issues=jira.search_issues('reporter={0} and status!=Done'.format(users[sender].jirauser))
+        for issue in issues:
+            answer+='• <a href="'+jiraserver+'/browse/'+issue.key+'">'+\
+        str(issue.key)+'</a> (<i>'+issue.raw['fields']['status']['name']+'</i>) '+issue.raw['fields']['summary']+'\n'
+        bot.sendMessage(chat_id=update.message.chat_id, text=answer, parse_mode='HTML')
+        keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in init_commands[lang].values()]], resize_keyboard=True)
+        bot.sendMessage(chat_id=update.message.chat_id, text=hello_message[lang], reply_markup=keys)
 
 def inline_update(bot, update):
-    global users
-    sender=str(update.callback_query.from_user.id)
+    sender=users[str(update.callback_query.from_user.id)]
     (action,task_id,new_data)=update.callback_query.data.split('__')
     message_id=update.callback_query.message.message_id
-    lang=users[sender]['language']
-    if task_id==users[sender]['task_id']:
-        if action=='user_change':
-            users[sender]['task_to']=new_data
-            keys=InlineKeyboardMarkup([[InlineKeyboardButton(name, callback_data='user_change__'+task_id+\
-                                        '__'+jira_users[name]) for name in jira_users]])
-            bot.editMessageText(chat_id=update.callback_query.message.chat.id, message_id=message_id, \
-                text=inline_assignee_message[lang].format(users[new_data]['name']), reply_markup=keys)
-            bot.answerCallbackQuery(callback_query_id=update.callback_query.id, text=update_is_ok_message[lang])
-        elif action=='priority_change':
-            users[sender]['priority']=new_data
-            for pr in priority_list[lang]:
-                if priority_list[lang][pr]==new_data:new_priority=pr
-            keys=InlineKeyboardMarkup([[InlineKeyboardButton(priority, callback_data='priority_change__'+users[sender]['task_id']+\
-                                        '__'+priority_list[lang][priority]) for priority in priority_list[lang]]])
-            bot.editMessageText(chat_id=update.callback_query.message.chat.id, message_id=message_id, \
-                                text=priority_was_set_message[lang].format(new_priority), reply_markup=keys)
-            bot.answerCallbackQuery(callback_query_id=update.callback_query.id, text=update_is_ok_message[lang])
-        elif action=='deadline_change':
-            users[sender]['deadline']=new_data
-            keyboard=['1','2','3','4','5','10']
-            keys=InlineKeyboardMarkup([[InlineKeyboardButton(key, callback_data='deadline_change__'+users[sender]['task_id']+
-                                        '__'+key) for key in keyboard]])
-            bot.editMessageText(chat_id=update.callback_query.message.chat.id, message_id=message_id, \
-                            text=deadline_was_set_message[lang].format(new_data), reply_markup=keys)
-            bot.answerCallbackQuery(callback_query_id=update.callback_query.id, text=update_is_ok_message[lang])
-        elif action=='project_change':
-            users[sender]['project']=new_data
-            keys=InlineKeyboardMarkup([[InlineKeyboardButton(project, callback_data='project_change__'+
-                                        users[sender]['task_id']+'__'+projects[project]) for project in projects]])
-            project=new_data
-            for pr in projects:
-                if projects[pr]==new_data:project=pr
-            bot.editMessageText(chat_id=update.callback_query.message.chat.id, message_id=message_id, \
-                            text=project_was_set_message[lang].format(project), reply_markup=keys)
-            bot.answerCallbackQuery(callback_query_id=update.callback_query.id, text=update_is_ok_message[lang])
+    lang=sender.language
+    if task_id==sender.task.task_id:
+        if action=='user_change': sender.task.inline_user_change(update, user=users[new_data])
+        elif action=='priority_change': sender.task.inline_priority_change(update, priority=new_data)
+        elif action=='deadline_change': sender.task.inline_deadline_change(update, deadline=new_data)
+        elif action=='project_change': sender.task.inline_project_change(update, project=new_data)
         else:
             bot.answerCallbackQuery(callback_query_id=update.callback_query.id, text=error_message[lang])
     else:
         bot.answerCallbackQuery(callback_query_id=update.callback_query.id, text=task_was_created_error[lang])
 
 def file_upload(bot, update):
-    global users
     sender=str(update.message.from_user.id)
-    lang=users[sender]['language']
-    if users[sender]['task_id']!=None:
+    lang=users[sender].language
+    if users[sender].task_id!=None:
         if update.message.voice!=None:
             f=update.message.voice.get_file()
             filename=f.download(custom_path=attach_dir+f.file_path.split('/').pop())
-            users[sender]['file'].append(filename)
+            users[sender].file.append(filename)
             bot.sendMessage(chat_id=update.message.chat_id, text=file_accepted_message[lang])
         elif update.message.document!=None:
             f=update.message.document.get_file()
             filename=f.download(custom_path=attach_dir+f.file_path.split('/').pop())
-            users[sender]['file'].append(filename)
+            users[sender].file.append(filename)
             bot.sendMessage(chat_id=update.message.chat_id, text=file_accepted_message[lang])
         elif update.message.video!=None:
             f=update.message.video.get_file()
             filename=f.download(custom_path=attach_dir+f.file_path.split('/').pop())
-            users[sender]['file'].append(filename)
+            users[sender].file.append(filename)
             bot.sendMessage(chat_id=update.message.chat_id, text=file_accepted_message[lang])
         elif update.message.photo!=None:
             photo=update.message.photo.pop()
             f=photo.get_file()
             filename=f.download(custom_path=attach_dir+f.file_path.split('/').pop())
-            users[sender]['file'].append(filename)
+            users[sender].file.append(filename)
             bot.sendMessage(chat_id=update.message.chat_id, text=file_accepted_message[lang])
         else:
             bot.sendMessage(chat_id=update.message.chat_id, text=file_type_error[lang])
     else:
         bot.sendMessage(chat_id=update.message.chat_id, text=no_task_error[lang])
 
+def task_router(bot, update):
+    bot.sendChatAction(chat_id=update.message.chat_id, action='typing')
+    text=update.message.text
+    sender=str(update.message.from_user.id)
+    if sender in users:
+        sender=users[sender]
+        lang=sender.language
+        task=sender.task
+        if sender.createtask:
+            if text==cancel_key[lang]:
+                start(bot, update)
+            elif text==task_commands[lang]['summary']: 
+                sender.ask_for_summary(update)
+            elif text==task_commands[lang]['priority']: 
+                sender.ask_for_priority(update)
+            elif text==task_commands[lang]['deadline']: 
+                sender.ask_for_deadline(update)
+            elif text==task_commands[lang]['project']: 
+                sender.ask_project(update)
+            elif text==send_task_key[lang]: 
+                sender.create_task(update, jira)
+            elif sender.task_assignee_set and (text.encode() in jira_users): 
+                sender.task.set_assignee(update=update, assignee=users[jira_users[text.encode()]])
+            elif sender.task_priority_set and (text in priority_list[lang]):
+                sender.task.set_priority(update=update, priority=text)
+            elif sender.task_project_set: 
+                sender.task.set_project(update=update, project=text)
+            elif sender.task_deadline_set:
+                sender.task.set_deadline(update=update, deadline=text)
+            elif sender.task_summary_set: 
+                sender.task.set_summary(update=update, summary=text)
+            elif sender.task.task_to is not None: 
+                sender.task.set_task_text(update=update, text=text)
+            else:
+                bot.sendMessage(chat_id=update.message.chat_id, text=error_message[lang], reply_markup=keys)
+        else:
+            if text.encode(encoding='utf_8', errors='strict')==cancel_key[lang].encode(encoding='utf_8', errors='strict'):start(bot, update)
+            elif text==init_commands[lang]['list']: list_tasks(bot, update)
+            elif text==init_commands[lang]['task']: sender.init_task(bot, update)
+            else:
+                bot.sendMessage(chat_id=update.message.chat_id, text=error_message[lang], reply_markup=keys)
+    else:
+        bot.sendMessage(chat_id=update.message.chat_id, text=no_authorization_message[lang])
+
+
+init_dirs()
+#logging.basicConfig(filename=log_dir+'main.log', level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
+logging.info("Starting the service")
 updater=Updater(token=token)
 dispatcher=updater.dispatcher
 
-try:
-    os.mkdir(db_dir)
-except:
-    pass
-try:
-    os.mkdir(attach_dir)
-except:
-    pass
-
 jira_users={}
-for user in users:
-    if users[user]['jirauser']!=None and users[user]['isAssignee']:jira_users[users[user]['name']]=user
-for user in clean_users:
-    clean_users[user]['set_summary']=False
-    clean_users[user]['summary']=None
-    clean_users[user]['set_priority']=False
-    clean_users[user]['task_to']=None
-    clean_users[user]['createtask']=False
-    clean_users[user]['set_deadline']=False
-    clean_users[user]['deadline']=None
-    clean_users[user]['set_project']=False
-    clean_users[user]['send_task']=False
-    clean_users[user]['task_id']=None
-    clean_users[user]['task_text']=None
-    clean_users[user]['file']=[]
-users=deepcopy(clean_users)
+users={}
+for user in user_list:
+    if user_list[user]['jirauser']!=None and user_list[user]['isAssignee']:
+        jira_users[user_list[user]['name'].encode()]=user
 
 projects={}
 jp=jira.projects()
 for project in jp:
     if project.key in jira_projects:projects[project.raw['name']]=project.key
 
+for user in user_list:
+    users[user]=User.User(user_id=user,\
+                     name=user_list[user]['name'],\
+                     default_project=user_list[user]['project'],\
+                     jira_users=jira_users,\
+                     project_list=projects,\
+                     jirauser=user_list[user]['jirauser'],\
+                     username=user_list[user]['username'],\
+                     isAssignee=user_list[user]['isAssignee'],\
+                     language=user_list[user]['language'],\
+                     priority=user_list[user]['priority'])
+
+logging.debug("Users were initialized!")
 start_handler=CommandHandler('start', start)
 list_handler=CommandHandler('list', show_list)
 help_handler=CommandHandler('help', show_help)
-task_create_handler=RegexHandler(r'.*', task_create)
+task_CRUD_handler=RegexHandler(r'.*', task_router)
 inline_handler=CallbackQueryHandler(inline_update)
 document_handler=MessageHandler(Filters.document, file_upload)
 photo_handler=MessageHandler(Filters.photo, file_upload)
@@ -325,7 +221,7 @@ dispatcher.add_handler(voice_handler)
 dispatcher.add_handler(start_handler)
 dispatcher.add_handler(list_handler)
 dispatcher.add_handler(help_handler)
-dispatcher.add_handler(task_create_handler)
+dispatcher.add_handler(task_CRUD_handler)
 dispatcher.add_handler(inline_handler)
 
 updater.start_polling()

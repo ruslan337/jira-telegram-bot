@@ -152,7 +152,7 @@ def task_router(bot, update):
                 bot.sendMessage(chat_id=update.message.chat_id, text=error_message[lang], reply_markup=keys)
         else:
             if text.encode(encoding='utf_8', errors='strict')==cancel_key[lang].encode(encoding='utf_8', errors='strict'):start(bot, update)
-            elif text==init_commands[lang]['list']: list_tasks(bot, update)
+            elif text==init_commands[lang]['list']: sender.list_tasks(bot, update, jira)
             elif text==init_commands[lang]['task']: sender.init_task(bot, update)
             else:
                 bot.sendMessage(chat_id=update.message.chat_id, text=error_message[lang], reply_markup=keys)

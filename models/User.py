@@ -3,7 +3,7 @@ from models import JiraTask
 from random import randint
 from languages import *
 from common import *
-from config import db_dir, no_projects_per_line, no_users_per_line
+from config import *
 from telegram import InlineKeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, ReplyKeyboardRemove, File, InputFile
 import logging
 
@@ -84,7 +84,21 @@ class User:
         else:
             keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in init_commands[self.language].values()]], resize_keyboard=True)
             self.bot.sendMessage(chat_id=update.message.chat_id, text=no_text_message[self.language], reply_markup=keys)
-        
+    
+    def list_tasks(self, bot, update, jira):
+        answer=''
+        answer+='<b>'+jirauser_assignee_list[self.language].format(self.name)+':</b>\n'
+        issues=jira.search_issues('assignee={0} and status!=Done'.format(self.jirauser))
+        for issue in issues:answer+='• <a href="'+jiraserver+'/browse/'+issue.key+'">'+\
+        str(issue.key)+'</a> (<i>'+issue.raw['fields']['status']['name']+'</i>) '+issue.raw['fields']['summary']+'\n'
+        answer+='\n<b>'+jirauser_author_list[self.language].format(self.name)+':</b>\n'
+        issues=jira.search_issues('reporter={0} and status!=Done'.format(self.jirauser))
+        for issue in issues:answer+='• <a href="'+jiraserver+'/browse/'+issue.key+'">'+\
+        str(issue.key)+'</a> (<i>'+issue.raw['fields']['status']['name']+'</i>) '+issue.raw['fields']['summary']+'\n'
+        bot.sendMessage(chat_id=update.message.chat_id, text=answer, parse_mode='HTML')
+        keys=ReplyKeyboardMarkup(keyboard=[[comm for comm in init_commands[self.language].values()]], resize_keyboard=True)
+        bot.sendMessage(chat_id=update.message.chat_id, text=hello_message[self.language], reply_markup=keys)
+
     def reset(self):
         self.summary=None
         self.task_summary_set=False

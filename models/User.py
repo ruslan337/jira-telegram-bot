@@ -2,7 +2,8 @@ from datetime import datetime, time, timedelta
 from models import JiraTask
 from random import randint
 from languages import *
-from config import db_dir
+from common import *
+from config import db_dir, no_projects_per_line, no_users_per_line
 from telegram import InlineKeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, ReplyKeyboardRemove, File, InputFile
 import logging
 
@@ -25,7 +26,12 @@ class User:
         self.task=JiraTask.JiraTask(defaul_project=self.project, default_priority=self.priority,bot=bot, author=self, lang=self.language, project_list=self.project_list, jira_users=self.jira_users)
         self.createtask=True
         self.task_assignee_set=True
-        keys=ReplyKeyboardMarkup(keyboard=[[name.decode() for name in self.jira_users],[cancel_key[self.language]]], resize_keyboard=True)
+        users_keys=split_list(self.jira_users, no_users_per_line)
+        for i in range(len(users_keys)):
+            for j in range(len(users_keys[i])):
+                users_keys[i][j]=users_keys[i][j].decode()
+        users_keys.append([cancel_key[self.language]])
+        keys=ReplyKeyboardMarkup(keyboard=users_keys, resize_keyboard=True)
         self.bot.sendMessage(chat_id=update.message.chat_id, text=task_assignee_message[self.language], reply_markup=keys)
         
     def ask_for_summary(self, update):
@@ -46,8 +52,9 @@ class User:
     
     def ask_project(self, update):
         self.task_project_set=True
-        keys=ReplyKeyboardMarkup(keyboard=[[project for project in self.project_list]], resize_keyboard=True)
-        self.bot.sendMessage(chat_id=update.message.chat_id, text=task_deadline_message[self.language], reply_markup=keys)
+        project_keys=split_list(self.project_list, no_projects_per_line)
+        keys=ReplyKeyboardMarkup(keyboard=project_keys, resize_keyboard=True)
+        self.bot.sendMessage(chat_id=update.message.chat_id, text=task_project_message[self.language], reply_markup=keys)
 
     def create_task(self, update, jira):
         logging.debug("User.create_task: {0}, {1}, {2}".format(self.task.project, self.task.summary, self.task.task_text))

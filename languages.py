@@ -1,7 +1,6 @@
-﻿# -*- coding: utf-8 -*-
 init_commands = { 'ru':{'task':u'Создать', 'list':u'Текущие задачи'},\
                   'en':{'task':'Create', 'list':'List'},}
-task_commands = { 'ru':{'deadline':u'Срок', 'summary':u'Тема', 'priority':u'Приоритет', 'project':u'Тип'},\
+task_commands = { 'ru':{'deadline':u'Срок', 'summary':u'Тема', 'priority':u'Приоритет', 'project':u'Проект'},\
                   'en':{'deadline':'Deadline', 'summary':'Summary', 'priority':'Priority', 'project':'Project'},}
 task_create_message = { 'ru':u'Опишите вашу проблему. Опционально, вы можете прикрепить файлы, указать тему задачи(краткое пояснение), \
 желаемый срок исполнения, тип задачи и важность задачи',\
@@ -34,7 +33,7 @@ task_priority_message = {'ru':u'Выбирете приоритет задачи
                         'en':'Choose the the priority for the task'}
 priority_was_set_message = {'ru':u'Задача будет создана с приоритетом: {0}',\
                            'en':'The task is going to be created with {0} priority'}
-task_project_message = {'ru':u'Выбирете тип задачи',\
+task_project_message = {'ru':u'Выбирете проект для задачи',\
                         'en':'Chose the project for the task'}
 project_was_set_message = {'ru':u'Вы выбрали тип задачи: {0}',\
                            'en':'The project is: {0}'}
@@ -50,8 +49,8 @@ hello_message = { 'ru':u'Чем обязаны?',\
                   'en':'How can I help you?'}
 task_was_created_error = { 'ru':u'Не возможно редактировать задачи после создания.', \
                            'en':u'Your are not allowed to edit tasks, as it was already sent to Assigne.' }
-no_authorization_message = { 'ru':u'У вас недостаточно привилегий для данной операции. Обратитесь к администратору системы.',\
-                             'en':'You are not allowed to perform this type of operations. Ask it to the system administrator.'}
+no_authorization_message = { 'ru':u'У вас недостаточно привилегий для данной операции. Обратитесь к администратору системы, отправьте ему этот код {0}.',\
+                             'en':'You are not allowed to perform this type of operations. Ask it to the system administrator, send him this code {0}.'}
 task_was_created_message = { 'ru':u'Задача {0} отправлена пользователю {1}',\
                              'en':'Task {0} was sent to the user {1}' }
 jirauser_assignee_list = { 'ru':u'Задачи назначенные на пользователя {0} ', \
